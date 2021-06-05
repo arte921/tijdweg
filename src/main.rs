@@ -1,8 +1,14 @@
 const SCHERMBREEDTE: u32 = 800;
 const SCHERMHOOGTE: u32 = 800;
+const ZIJMARGE: u32 = 100;
 
-const TIJDBEGIN: u16 = 7 * 60;
-const TIJDSCHAAL: f32 = 0.001;
+const TIJDBEGIN: u16 = 0;
+
+// pixels per minuut
+const TIJDSCHAAL: f32 = 5.0;
+
+const TEKENSCHERMBREEDTE : u32 = SCHERMBREEDTE - ZIJMARGE;
+const TEKENSCHERMHOOGTE : u32 = SCHERMHOOGTE;
 
 use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -78,11 +84,11 @@ fn vindt_afstand(afstanden: &Vec<Afstand>, stationa: String, stationb: String) -
 fn tijd_in_station(ritdeel: &Ritdeel, station: String, afstanden: &Vec<Afstand>) -> u16 {
     let mut totale_afstand = 0.0;
 
-    let mut station_afstand = 0.0; 
+    let mut station_afstand = 0.0;
 
     for i in 1..ritdeel.stations.len() {
         totale_afstand += vindt_afstand(afstanden, ritdeel.stations[i - 1].to_string(), ritdeel.stations[i].to_string());
-        
+
         if ritdeel.stations[i] == station {
             station_afstand = totale_afstand;
         }
@@ -108,11 +114,12 @@ fn bereken_station_relatieve_positie(stations: &Vec<String>, afstanden: &Vec<Afs
     
     for i in 1..stations.len() {
         let afstand = vindt_afstand(&afstanden, stations[i - 1].to_string(), stations[i].to_string());
+        
         totaleafstand += afstand;
 
         resultaat.push(Stationpositie {
             station: stations[i].to_string(),
-            positie: afstand
+            positie: totaleafstand
         });
     }
 
@@ -162,13 +169,15 @@ fn main() -> std::io::Result<()> {
         d.clear_background(Color::BLACK);
 
         for station in &stationsafstanden {
-            let tekenx = (station.positie * SCHERMBREEDTE as f32) as i32;
+            let tekenx = (station.positie * TEKENSCHERMBREEDTE as f32) as i32;
+
+            println!("Station: {}, tekenx: {}", station.station, tekenx);
 
             d.draw_line(
                 tekenx,
                 0,
                 tekenx,
-                SCHERMHOOGTE as i32,
+                TEKENSCHERMHOOGTE as i32,
                 Color::WHITE
             );
 
@@ -179,6 +188,19 @@ fn main() -> std::io::Result<()> {
                 30,
                 Color::GRAY
             );
+/*
+            let tijdsweergave = 10;
+            for i in 0..tijdsweergave {
+                let tijd = TIJDBEGIN + i * 
+                d.draw_text(
+                    // &format!("{}: {}", tijd / 60, tijd % 60).to_string(),
+                    &tijd.to_string(),
+                    TEKENSCHERMBREEDTE as i32,
+                    (TEKENSCHERMHOOGTE * i / tijdsweergave) as i32,
+                    20,
+                    Color::RED
+                );
+            }*/
         }
 
         for rit in &zichtbaretijdwegen {
@@ -196,12 +218,12 @@ fn main() -> std::io::Result<()> {
                 let eind_x_breuk = vind_station(&stationsafstanden, eindstation.to_string()).positie;
 
                 let lijn_start_coordinaat = Vector2 {
-                    x: begin_x_breuk * SCHERMBREEDTE as f32,
+                    x: begin_x_breuk * TEKENSCHERMBREEDTE as f32,
                     y: (begintijd as f32 - TIJDBEGIN as f32) * TIJDSCHAAL                    
                 };
 
                 let lijn_eind_coordinaat = Vector2 {
-                    x: eind_x_breuk * SCHERMBREEDTE as f32,
+                    x: eind_x_breuk * TEKENSCHERMBREEDTE as f32,
                     y: (eindtijd as f32 - TIJDBEGIN as f32) as f32 * TIJDSCHAAL                    
                 };
                 
