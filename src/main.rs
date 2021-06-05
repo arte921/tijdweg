@@ -1,3 +1,9 @@
+const SCHERMBREEDTE: u32 = 800;
+const SCHERMHOOGTE: u32 = 800;
+
+const TIJDBEGIN: u16 = 7 * 60;
+const TIJDSCHAAL: f32 = 0.1;
+
 use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -5,7 +11,7 @@ use std::io::prelude::*;
 
 struct Stationpositie {
     station: String,
-    positie: f64
+    positie: f32
 }
 
 #[derive(Serialize, Deserialize)]
@@ -15,7 +21,7 @@ struct Config {
 
 #[derive(Serialize, Deserialize)]
 struct Afstand {
-    afstand: f64,
+    afstand: f32,
     van: String,
     naar: String,
 }
@@ -42,29 +48,34 @@ fn wordt_weergegeven(ritdeel: &Ritdeel, config: &Config) -> bool {
     })
 }
 
-fn gemeenschappelijk_station(ritdeel: &Ritdeel, config: &Config, eerste: bool) -> String {
-    let stations = ritdeel.stations.into_iter();
-    if !eerste {
-        stations.rev();
-    }
+fn gemeenschappelijke_stations(ritdeel: &Ritdeel, config: &Config) -> (String, String) {
+    let mut allestations = ritdeel
+        .stations
+        .iter()
+        .filter(|ritstation| config
+            .weergegeven_stations
+            .iter()
+            .any(|weergegevenstation| weergegevenstation == *ritstation)
+        );
 
-    match stations.find(|ritstation| config.weergegeven_stations.iter().any(|weergegevenstation| &weergegevenstation == ritstation)) {
-        None => "e".to_string(),
-        Some(station) => station.to_string()
+    match (allestations.next(), allestations.next()) {
+        (Some(stationa), Some(stationb)) => (stationa.to_string(), stationb.to_string()),
+        (Some(stationa), None) => (stationa.to_string(), stationa.to_string()),
+        _ => panic!()
     }
 }
 
-fn vindt_afstand(afstanden: &Vec<Afstand>, stationa: String, stationb: String) -> f64 {
+fn vindt_afstand(afstanden: &Vec<Afstand>, stationa: String, stationb: String) -> f32 {
     match afstanden
         .iter()
         .find(|feature| (feature.van == stationa && feature.naar == stationb) || (feature.naar == stationa && feature.van == stationb))
     {
-        None => 0.0,
+        None => panic!(),
         Some(feature) => feature.afstand
     }
 }
 
-fn tijd_in_station(ritdeel: &Ritdeel, station: String, afstanden: &Vec<Afstand>) -> f64 {
+fn tijd_in_station(ritdeel: &Ritdeel, station: String, afstanden: &Vec<Afstand>) -> u16 {
     let mut totale_afstand = 0.0;
 
     let mut station_afstand = 0.0; 
@@ -77,23 +88,30 @@ fn tijd_in_station(ritdeel: &Ritdeel, station: String, afstanden: &Vec<Afstand>)
         }
     }
 
-    (ritdeel.vertrektijd - ritdeel.aankomsttijd) as f64 * totale_afstand / station_afstand
+    ((ritdeel.aankomsttijd - ritdeel.vertrektijd) as f32 * totale_afstand / station_afstand) as u16
 }
 
-fn bereken_station_relatieve_positie(stations: Vec<String>, afstanden: Vec<Afstand>) -> Vec<Stationpositie> {
+fn vind_station(stationsposities: &Vec<Stationpositie>, stationscode: String) -> &Stationpositie {
+    match stationsposities.into_iter().find(|station| station.station == stationscode) {
+        None => panic!(),
+        Some(station) => station
+    }
+}
+
+fn bereken_station_relatieve_positie(stations: &Vec<String>, afstanden: &Vec<Afstand>) -> Vec<Stationpositie> {
     let mut resultaat: Vec<Stationpositie> = vec![Stationpositie {
-        station: stations[0],
+        station: stations[0].to_string(),
         positie: 0.0
     }];
 
     let mut totaleafstand = 0.0;
     
     for i in 1..stations.len() {
-        let afstand = vindt_afstand(&afstanden, stations[i - 1], stations[i]);
+        let afstand = vindt_afstand(&afstanden, stations[i - 1].to_string(), stations[i].to_string());
         totaleafstand += afstand;
 
         resultaat.push(Stationpositie {
-            station: stations[i],
+            station: stations[i].to_string(),
             positie: afstand
         });
     }
@@ -120,7 +138,7 @@ fn main() -> std::io::Result<()> {
     File::open("opslag/config.json")?.read_to_string(&mut config_json)?;
     let config: Config = serde_json::from_str(&config_json)?;
 
-    let stationsafstanden = bereken_station_relatieve_positie(config.weergegeven_stations, afstanden);
+    let stationsafstanden = bereken_station_relatieve_positie(&config.weergegeven_stations, &afstanden);
 
     let zichtbaretijdwegen: Vec<Rit> = ritjes
         .into_iter()
@@ -133,7 +151,7 @@ fn main() -> std::io::Result<()> {
 
     
     let (mut rl, thread) = raylib::init()
-        .size(800, 800)
+        .size(SCHERMBREEDTE as i32, SCHERMHOOGTE as i32)
         .title("Tijd-weg diagram")
         .build();
 
@@ -149,15 +167,25 @@ fn main() -> std::io::Result<()> {
                     continue;
                 }
 
-                let beginstation = gemeenschappelijk_station(&ritdeel, &config, true);
-                let eindstation = gemeenschappelijk_station(&ritdeel, &config, false);
+                let (beginstation, eindstation) = gemeenschappelijke_stations(&ritdeel, &config);
 
-                let begintijd = tijd_in_station(ritdeel, beginstation, &afstanden);
-                let eindtijd = tijd_in_station(ritdeel, eindstation, &afstanden);
+                let begintijd = tijd_in_station(ritdeel, beginstation.to_string(), &afstanden);
+                let eindtijd = tijd_in_station(ritdeel, eindstation.to_string(), &afstanden);
 
-                let begin_x_breuk = stationsafstanden.iter().find(|station| station.station == beginstation).positie;
-                let begin_y_breuk = stationsafstanden.iter().find(|station| station.station == eindstation).positie;
+                let begin_x_breuk = vind_station(&stationsafstanden, beginstation.to_string()).positie;
+                let eind_x_breuk = vind_station(&stationsafstanden, eindstation.to_string()).positie;
+
+                let lijn_start_coordinaat = Vector2 {
+                    x: begin_x_breuk * SCHERMBREEDTE as f32,
+                    y: (begintijd as f32 - TIJDBEGIN as f32) * TIJDSCHAAL                    
+                };
+
+                let lijn_eind_coordinaat = Vector2 {
+                    x: eind_x_breuk * SCHERMBREEDTE as f32,
+                    y: (eindtijd as f32 - TIJDBEGIN as f32) as f32 * TIJDSCHAAL                    
+                };
                 
+                d.draw_line_ex(lijn_start_coordinaat, lijn_eind_coordinaat, 1.0, Color::YELLOW);
             }
         }
     }
