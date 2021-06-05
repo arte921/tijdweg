@@ -2,10 +2,10 @@ const SCHERMBREEDTE: u32 = 800;
 const SCHERMHOOGTE: u32 = 800;
 const ZIJMARGE: u32 = 100;
 
-const TIJDBEGIN: u16 = 0;
+const TIJDBEGIN: u16 = 420;
 
 // minuten per pixel
-const TIJDSCHAAL: f32 = 1.0;
+const TIJDSCHAAL: f32 = 10.0;
 
 const TEKENSCHERMBREEDTE: u32 = SCHERMBREEDTE - ZIJMARGE;
 const TEKENSCHERMHOOGTE: u32 = SCHERMHOOGTE;
@@ -82,22 +82,6 @@ fn vindt_afstand(afstanden: &Vec<Afstand>, stationa: String, stationb: String) -
     }
 }
 
-fn tijd_in_station(ritdeel: &Ritdeel, station: String, afstanden: &Vec<Afstand>) -> u16 {
-    let mut totale_afstand = 0.0;
-
-    let mut station_afstand = 0.0;
-
-    for i in 1..ritdeel.stations.len() {
-        totale_afstand += vindt_afstand(afstanden, ritdeel.stations[i - 1].to_string(), ritdeel.stations[i].to_string());
-
-        if ritdeel.stations[i] == station {
-            station_afstand = totale_afstand;
-        }
-    }
-
-    ((ritdeel.aankomsttijd - ritdeel.vertrektijd) as f32 * totale_afstand / station_afstand) as u16
-}
-
 fn vind_station(stationsposities: &Vec<Stationpositie>, stationscode: String) -> &Stationpositie {
     match stationsposities.into_iter().find(|station| station.station == stationscode) {
         None => panic!(),
@@ -134,7 +118,6 @@ fn bereken_station_relatieve_positie(stations: &Vec<String>, afstanden: &Vec<Afs
 }
 
 fn main() -> std::io::Result<()> {
-    println!("{}", TIJDEINDE);
     let mut ritjes_json = String::new();
     File::open("opslag/alletijdwegen.json")?.read_to_string(&mut ritjes_json)?;
     let ritjes: Vec<Rit> = serde_json::from_str(&ritjes_json)?;
@@ -173,8 +156,6 @@ fn main() -> std::io::Result<()> {
         for station in &stationsafstanden {
             let tekenx = (station.positie * TEKENSCHERMBREEDTE as f32) as i32;
 
-            println!("Station: {}, tekenx: {}", station.station, tekenx);
-
             d.draw_line(
                 tekenx,
                 0,
@@ -207,9 +188,6 @@ fn main() -> std::io::Result<()> {
 
                 let begintijd = (vind_station(&ritafstanden, beginstation.to_string()).positie * ritduur as f32) as u16 + ritdeel.vertrektijd;
                 let eindtijd = (vind_station(&ritafstanden, eindstation.to_string()).positie * ritduur as f32) as u16 + ritdeel.vertrektijd;
-                
-                // let begintijd = tijd_in_station(ritdeel, beginstation.to_string(), &afstanden);
-                // let eindtijd = tijd_in_station(ritdeel, eindstation.to_string(), &afstanden);
 
                 let begin_x_breuk = vind_station(&stationsafstanden, beginstation.to_string()).positie;
                 let eind_x_breuk = vind_station(&stationsafstanden, eindstation.to_string()).positie;
