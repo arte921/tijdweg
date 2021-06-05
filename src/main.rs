@@ -4,11 +4,12 @@ const ZIJMARGE: u32 = 100;
 
 const TIJDBEGIN: u16 = 0;
 
-// pixels per minuut
-const TIJDSCHAAL: f32 = 5.0;
+// minuten per pixel
+const TIJDSCHAAL: f32 = 1.0;
 
-const TEKENSCHERMBREEDTE : u32 = SCHERMBREEDTE - ZIJMARGE;
-const TEKENSCHERMHOOGTE : u32 = SCHERMHOOGTE;
+const TEKENSCHERMBREEDTE: u32 = SCHERMBREEDTE - ZIJMARGE;
+const TEKENSCHERMHOOGTE: u32 = SCHERMHOOGTE;
+const TIJDEINDE: u16 = TIJDBEGIN + (TEKENSCHERMHOOGTE as f32 * TIJDSCHAAL) as u16;
 
 use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -133,6 +134,7 @@ fn bereken_station_relatieve_positie(stations: &Vec<String>, afstanden: &Vec<Afs
 }
 
 fn main() -> std::io::Result<()> {
+    println!("{}", TIJDEINDE);
     let mut ritjes_json = String::new();
     File::open("opslag/alletijdwegen.json")?.read_to_string(&mut ritjes_json)?;
     let ritjes: Vec<Rit> = serde_json::from_str(&ritjes_json)?;
@@ -188,19 +190,7 @@ fn main() -> std::io::Result<()> {
                 30,
                 Color::GRAY
             );
-/*
-            let tijdsweergave = 10;
-            for i in 0..tijdsweergave {
-                let tijd = TIJDBEGIN + i * 
-                d.draw_text(
-                    // &format!("{}: {}", tijd / 60, tijd % 60).to_string(),
-                    &tijd.to_string(),
-                    TEKENSCHERMBREEDTE as i32,
-                    (TEKENSCHERMHOOGTE * i / tijdsweergave) as i32,
-                    20,
-                    Color::RED
-                );
-            }*/
+
         }
 
         for rit in &zichtbaretijdwegen {
@@ -209,17 +199,24 @@ fn main() -> std::io::Result<()> {
                     continue;
                 }
 
+                let ritduur = ritdeel.aankomsttijd - ritdeel.vertrektijd;
+
                 let (beginstation, eindstation) = gemeenschappelijke_stations(&ritdeel, &config);
 
-                let begintijd = tijd_in_station(ritdeel, beginstation.to_string(), &afstanden);
-                let eindtijd = tijd_in_station(ritdeel, eindstation.to_string(), &afstanden);
+                let ritafstanden = bereken_station_relatieve_positie(&ritdeel.stations, &afstanden);
+
+                let begintijd = (vind_station(&ritafstanden, beginstation.to_string()).positie * ritduur as f32) as u16 + ritdeel.vertrektijd;
+                let eindtijd = (vind_station(&ritafstanden, eindstation.to_string()).positie * ritduur as f32) as u16 + ritdeel.vertrektijd;
+                
+                // let begintijd = tijd_in_station(ritdeel, beginstation.to_string(), &afstanden);
+                // let eindtijd = tijd_in_station(ritdeel, eindstation.to_string(), &afstanden);
 
                 let begin_x_breuk = vind_station(&stationsafstanden, beginstation.to_string()).positie;
                 let eind_x_breuk = vind_station(&stationsafstanden, eindstation.to_string()).positie;
 
                 let lijn_start_coordinaat = Vector2 {
                     x: begin_x_breuk * TEKENSCHERMBREEDTE as f32,
-                    y: (begintijd as f32 - TIJDBEGIN as f32) * TIJDSCHAAL                    
+                    y: (begintijd as f32 - TIJDBEGIN as f32) * TIJDSCHAAL 
                 };
 
                 let lijn_eind_coordinaat = Vector2 {
