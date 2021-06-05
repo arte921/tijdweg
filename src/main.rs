@@ -38,6 +38,18 @@ fn wordt_weergegeven(ritdeel: &Ritdeel, config: &Config) -> bool {
     })
 }
 
+fn gemeenschappelijk_station(ritdeel: &Ritdeel, config: &Config, eerste: bool) -> String {
+    let stations = ritdeel.stations.iter();
+    if !eerste {
+        stations.rev();
+    }
+
+    match stations.find(|ritstation| config.weergegeven_stations.iter().any(|weergegevenstation| &weergegevenstation == ritstation)) {
+        None => "e".to_string(),
+        Some(station) => station.to_string()
+    }
+}
+
 fn tijd_in_station(ritdeel: &Ritdeel, station: String, afstanden: &Vec<Afstand>) -> f32 {
     let mut totale_afstand = 0.0;
 
@@ -100,7 +112,11 @@ fn main() -> std::io::Result<()> {
                     continue;
                 }
 
+                let beginstation = gemeenschappelijk_station(&ritdeel, &config, true);
+                let eindstation = gemeenschappelijk_station(&ritdeel, &config, false);
 
+                let begintijd = tijd_in_station(ritdeel, beginstation, &afstanden);
+                let eindtijd = tijd_in_station(ritdeel, eindstation, &afstanden);
             }
         }
     }
