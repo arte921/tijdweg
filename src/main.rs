@@ -2,7 +2,11 @@ use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::prelude::*;
-use std::collections::HashMap;
+
+struct Stationpositie {
+    station: String,
+    positie: f64
+}
 
 #[derive(Serialize, Deserialize)]
 struct Config {
@@ -11,7 +15,7 @@ struct Config {
 
 #[derive(Serialize, Deserialize)]
 struct Afstand {
-    afstand: f32,
+    afstand: f64,
     van: String,
     naar: String,
 }
@@ -39,7 +43,7 @@ fn wordt_weergegeven(ritdeel: &Ritdeel, config: &Config) -> bool {
 }
 
 fn gemeenschappelijk_station(ritdeel: &Ritdeel, config: &Config, eerste: bool) -> String {
-    let stations = ritdeel.stations.iter();
+    let stations = ritdeel.stations.into_iter();
     if !eerste {
         stations.rev();
     }
@@ -50,29 +54,57 @@ fn gemeenschappelijk_station(ritdeel: &Ritdeel, config: &Config, eerste: bool) -
     }
 }
 
-fn tijd_in_station(ritdeel: &Ritdeel, station: String, afstanden: &Vec<Afstand>) -> f32 {
+fn vindt_afstand(afstanden: &Vec<Afstand>, stationa: String, stationb: String) -> f64 {
+    match afstanden
+        .iter()
+        .find(|feature| (feature.van == stationa && feature.naar == stationb) || (feature.naar == stationa && feature.van == stationb))
+    {
+        None => 0.0,
+        Some(feature) => feature.afstand
+    }
+}
+
+fn tijd_in_station(ritdeel: &Ritdeel, station: String, afstanden: &Vec<Afstand>) -> f64 {
     let mut totale_afstand = 0.0;
 
     let mut station_afstand = 0.0; 
 
     for i in 1..ritdeel.stations.len() {
-        totale_afstand += match afstanden
-            .iter()
-            .find(|feature| 
-                (feature.van == ritdeel.stations[i - 1] && feature.naar == ritdeel.stations[i]) ||
-                (feature.naar == ritdeel.stations[i - 1] && feature.van == ritdeel.stations[i])
-            )
-            {
-                None => 0.0,
-                Some(feature) => feature.afstand
-            };
+        totale_afstand += vindt_afstand(afstanden, ritdeel.stations[i - 1].to_string(), ritdeel.stations[i].to_string());
         
         if ritdeel.stations[i] == station {
             station_afstand = totale_afstand;
         }
     }
 
-    (ritdeel.vertrektijd - ritdeel.aankomsttijd) as f32 * totale_afstand / station_afstand
+    (ritdeel.vertrektijd - ritdeel.aankomsttijd) as f64 * totale_afstand / station_afstand
+}
+
+fn bereken_station_tekenpositie(stations: Vec<String>, afstanden: Vec<Afstand>) -> Vec<Stationpositie> {
+    let mut resultaat: Vec<Stationpositie> = vec![Stationpositie {
+        station: stations[0],
+        positie: 0.0
+    }];
+
+    let mut totaleafstand = 0.0;
+    
+    for i in 1..stations.len() {
+        let afstand = vindt_afstand(&afstanden, stations[i - 1], stations[i]);
+        totaleafstand += afstand;
+
+        resultaat.push(Stationpositie {
+            station: stations[i],
+            positie: afstand
+        });
+    }
+
+    resultaat
+        .into_iter()
+        .map(|stationpositie| Stationpositie {
+            station: stationpositie.station,
+            positie: stationpositie.positie / totaleafstand
+        })
+        .collect()
 }
 
 fn main() -> std::io::Result<()> {
@@ -86,7 +118,7 @@ fn main() -> std::io::Result<()> {
 
     let mut config_json = String::new();
     File::open("opslag/config.json")?.read_to_string(&mut config_json)?;
-    let config: Config = serde_json::from_str(&config_json)?;
+    let config: Config = serde_json::from_str(&config_json)?;    
 
     let zichtbaretijdwegen: Vec<Rit> = ritjes
         .into_iter()
@@ -98,7 +130,7 @@ fn main() -> std::io::Result<()> {
         .collect();
 
     
-    let (mut rl, _) = raylib::init()
+    let (mut rl, thread) = raylib::init()
         .size(800, 800)
         .title("Tijd-weg diagram")
         .build();
@@ -106,6 +138,9 @@ fn main() -> std::io::Result<()> {
     rl.set_target_fps(60);
 
     while !rl.window_should_close() {
+        let mut d = rl.begin_drawing(&thread); 
+        d.clear_background(Color::BLACK);
+
         for rit in &zichtbaretijdwegen {
             for ritdeel in &rit.tijdwegen {
                 if !wordt_weergegeven(ritdeel, &config) {
