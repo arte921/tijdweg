@@ -80,7 +80,7 @@ fn tijd_in_station(ritdeel: &Ritdeel, station: String, afstanden: &Vec<Afstand>)
     (ritdeel.vertrektijd - ritdeel.aankomsttijd) as f64 * totale_afstand / station_afstand
 }
 
-fn bereken_station_tekenpositie(stations: Vec<String>, afstanden: Vec<Afstand>) -> Vec<Stationpositie> {
+fn bereken_station_relatieve_positie(stations: Vec<String>, afstanden: Vec<Afstand>) -> Vec<Stationpositie> {
     let mut resultaat: Vec<Stationpositie> = vec![Stationpositie {
         station: stations[0],
         positie: 0.0
@@ -118,7 +118,9 @@ fn main() -> std::io::Result<()> {
 
     let mut config_json = String::new();
     File::open("opslag/config.json")?.read_to_string(&mut config_json)?;
-    let config: Config = serde_json::from_str(&config_json)?;    
+    let config: Config = serde_json::from_str(&config_json)?;
+
+    let stationsafstanden = bereken_station_relatieve_positie(config.weergegeven_stations, afstanden);
 
     let zichtbaretijdwegen: Vec<Rit> = ritjes
         .into_iter()
@@ -152,6 +154,10 @@ fn main() -> std::io::Result<()> {
 
                 let begintijd = tijd_in_station(ritdeel, beginstation, &afstanden);
                 let eindtijd = tijd_in_station(ritdeel, eindstation, &afstanden);
+
+                let begin_x_breuk = stationsafstanden.iter().find(|station| station.station == beginstation).positie;
+                let begin_y_breuk = stationsafstanden.iter().find(|station| station.station == eindstation).positie;
+                
             }
         }
     }
