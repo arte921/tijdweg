@@ -2,7 +2,7 @@ const SCHERMBREEDTE: u32 = 800;
 const SCHERMHOOGTE: u32 = 800;
 
 const TIJDBEGIN: u16 = 7 * 60;
-const TIJDSCHAAL: f32 = 0.1;
+const TIJDSCHAAL: f32 = 0.001;
 
 use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -160,6 +160,26 @@ fn main() -> std::io::Result<()> {
     while !rl.window_should_close() {
         let mut d = rl.begin_drawing(&thread); 
         d.clear_background(Color::BLACK);
+
+        for station in &stationsafstanden {
+            let tekenx = (station.positie * SCHERMBREEDTE as f32) as i32;
+
+            d.draw_line(
+                tekenx,
+                0,
+                tekenx,
+                SCHERMHOOGTE as i32,
+                Color::WHITE
+            );
+
+            d.draw_text(
+                &station.station.to_string(),
+                tekenx,
+                0,
+                30,
+                Color::GRAY
+            );
+        }
 
         for rit in &zichtbaretijdwegen {
             for ritdeel in &rit.tijdwegen {
