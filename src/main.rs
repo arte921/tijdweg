@@ -2,14 +2,12 @@ const SCHERMBREEDTE: u32 = 800;
 const SCHERMHOOGTE: u32 = 800;
 const ZIJMARGE: u32 = 100;
 
-const TIJDBEGIN: u16 = 420;
-
-// minuten per pixel
-const TIJDSCHAAL: f32 = 10.0;
+const SCROLLSNELHEID: f32 = 30.0;
+const ZOOMSNELHEID: f32 = 2.0;
 
 const TEKENSCHERMBREEDTE: u32 = SCHERMBREEDTE - ZIJMARGE;
 const TEKENSCHERMHOOGTE: u32 = SCHERMHOOGTE;
-const TIJDEINDE: u16 = TIJDBEGIN + (TEKENSCHERMHOOGTE as f32 * TIJDSCHAAL) as u16;
+
 
 use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -64,8 +62,9 @@ fn gemeenschappelijke_stations(ritdeel: &Ritdeel, config: &Config) -> (String, S
             .iter()
             .any(|weergegevenstation| weergegevenstation == *ritstation)
         );
-
-    match (allestations.next(), allestations.next()) {
+    
+    
+    match (allestations.next(), allestations.last()) {
         (Some(stationa), Some(stationb)) => (stationa.to_string(), stationb.to_string()),
         (Some(stationa), None) => (stationa.to_string(), stationa.to_string()),
         _ => panic!()
@@ -149,9 +148,35 @@ fn main() -> std::io::Result<()> {
 
     rl.set_target_fps(60);
 
+    let mut tijdbegin: u16 = 420;
+    // minuten per pixel
+    let mut tijdsschaal: f32 = 10.0;
+
     while !rl.window_should_close() {
         let mut d = rl.begin_drawing(&thread); 
         d.clear_background(Color::BLACK);
+
+
+        if d.is_key_down(KeyboardKey::KEY_UP)  {
+            let verschil = (SCROLLSNELHEID / tijdsschaal) as u16;
+            tijdbegin = if verschil > tijdbegin {
+                0
+            } else {
+                tijdbegin - verschil
+            };
+        }
+
+        if d.is_key_down(KeyboardKey::KEY_DOWN) {
+            tijdbegin += (SCROLLSNELHEID / tijdsschaal) as u16;
+        }
+
+        if d.is_key_down(KeyboardKey::KEY_P) {
+            tijdsschaal *= ZOOMSNELHEID;
+        }
+
+        if d.is_key_down(KeyboardKey::KEY_O) {
+            tijdsschaal /= ZOOMSNELHEID;
+        }
 
         for station in &stationsafstanden {
             let tekenx = (station.positie * TEKENSCHERMBREEDTE as f32) as i32;
@@ -171,7 +196,43 @@ fn main() -> std::io::Result<()> {
                 30,
                 Color::GRAY
             );
+        }
 
+        for uur in 0..=23 {
+
+            let uurtekenhoogte = (uur * 60 - tijdbegin as i32) * tijdsschaal as i32;
+
+            d.draw_text(
+                &format!("{}:00", uur),
+                TEKENSCHERMBREEDTE as i32,
+                uurtekenhoogte,
+                30,
+                Color::RED
+            );
+
+            d.draw_line(
+                0,
+                uurtekenhoogte,
+                TEKENSCHERMBREEDTE as i32,
+                uurtekenhoogte,
+                Color::LIGHTGRAY
+            );
+
+            for tiendeminuut in 1..=5 {
+                let tiendeminuut_tekenhoogte = uurtekenhoogte + ((10 * tiendeminuut) as f32 * tijdsschaal) as i32;
+
+                d.draw_line(
+                    0,
+                    tiendeminuut_tekenhoogte,
+                    TEKENSCHERMBREEDTE as i32,
+                    tiendeminuut_tekenhoogte,
+                    if tiendeminuut == 3 {
+                        Color::GRAY
+                    } else {
+                        Color::DARKGRAY
+                    }
+                );
+            }
         }
 
         for rit in &zichtbaretijdwegen {
@@ -194,12 +255,12 @@ fn main() -> std::io::Result<()> {
 
                 let lijn_start_coordinaat = Vector2 {
                     x: begin_x_breuk * TEKENSCHERMBREEDTE as f32,
-                    y: (begintijd as f32 - TIJDBEGIN as f32) * TIJDSCHAAL 
+                    y: (begintijd as f32 - tijdbegin as f32) * tijdsschaal 
                 };
 
                 let lijn_eind_coordinaat = Vector2 {
                     x: eind_x_breuk * TEKENSCHERMBREEDTE as f32,
-                    y: (eindtijd as f32 - TIJDBEGIN as f32) as f32 * TIJDSCHAAL                    
+                    y: (eindtijd as f32 - tijdbegin as f32) as f32 * tijdsschaal                    
                 };
                 
                 d.draw_line_ex(lijn_start_coordinaat, lijn_eind_coordinaat, 1.0, Color::YELLOW);
